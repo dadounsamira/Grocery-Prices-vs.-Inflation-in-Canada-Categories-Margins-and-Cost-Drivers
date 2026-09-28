@@ -49,7 +49,7 @@ def load_statcan(table_id):
     return df
 
 # Reusable function: works for any Bank of Canada series, given its code
-def load_boc(series_code):
+def load_boc(series_code, group=False):
     """Download a Bank of Canada series (if not already done today) and return the JSON as a dictionary."""
     json_path = RAW / f"boc_{series_code}_{TODAY}.json"
 
@@ -57,7 +57,11 @@ def load_boc(series_code):
     if json_path.exists():
         print("Already downloaded today:", json_path)
     else:
-        url = f"{VALET}/observations/{series_code}/json"
+        # A group holds several series and has a different address
+        if group:
+            url = f"{VALET}/observations/group/{series_code}/json"
+        else:
+            url = f"{VALET}/observations/{series_code}/json"
         response = requests.get(url, timeout=60)
         response.raise_for_status()
         json_path.write_text(response.text, encoding="utf-8")
@@ -96,3 +100,8 @@ print("First 3 observations:", policy["observations"][:3])
 fx = load_boc("FXUSDCAD")
 print("FX info:", fx["seriesDetail"])
 print("FX first 3 observations:", fx["observations"][:3])
+
+# Dataset 5: Bank of Canada commodity price index, monthly (group BCPI_MONTHLY, includes energy M.ENER)
+bcpi = load_boc("BCPI_MONTHLY", group=True)
+print("BCPI series in the group:", list(bcpi["seriesDetail"].keys()))
+print("BCPI first observation:", bcpi["observations"][0])
