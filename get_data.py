@@ -2,7 +2,7 @@
 
 from datetime import date
 from pathlib import Path
-from zipfile import ZipFile
+
 
 import zipfile
 import pandas as pd
@@ -19,63 +19,47 @@ TODAY=date.today().isoformat()
 RAW = Path("data/raw")
 RAW.mkdir(parents=True, exist_ok=True)
 
+# Reusable function: works for any Statistics Canada table, given its ID
+def load_statcan(table_id):
+    """Download a Statistics Canada table (if not already done today) and return it as a DataFrame."""
+    # Download only if today's file isn't already saved
+    zip_path = RAW / f"statcan_{table_id}_{TODAY}.zip"
+    if zip_path.exists():
+        print("Already downloaded today:", zip_path)
+    else:
+        api_url = f"https://www150.statcan.gc.ca/t1/wds/rest/getFullTableDownloadCSV/{table_id}/en"
+        response = requests.get(api_url, timeout=60)
+        response.raise_for_status()
+        zip_url = response.json()["object"]
+        print("Download link:", zip_url)
+        data = requests.get(zip_url, timeout=300)
+        data.raise_for_status()
+        zip_path.write_bytes(data.content)
+        print("Saved:", zip_path)
+
+    # Open the zip and read data inside it
+    with zipfile.ZipFile(zip_path, "r") as z:
+        print("Files in the zip :", z.namelist())
+        with z.open(f"{table_id}.csv") as f:
+            df = pd.read_csv(f, low_memory=False)
+    return df
+
+
 # Dataset1 : Monthly average retail prices ( table 18-10-0245-01)
-table_id = "18100245"
-#api_url = f"https://www150.statcan.gc.ca/t1/wds/rest/getFullTableDownloadCSV/{table_id}/en"
-
-#response = requests.get(api_url, timeout=60)
-#print(response.status_code)
-#print(response.json())
-
-#response.raise_for_status()
-
-# Pull download link
-#zip_url = response.json() ["object"]
-#print("Download link :", zip_url)
-
-# Download the zip file
-#data = requests.get(zip_url, timeout=300)
-#data.raise_for_status()
-
-# Save it raw in data raw
-#zip_path = RAW / f"statcan_{table_id}_{TODAY}.zip"
-#zip_path.write_bytes(data.content)
-#print("Saved :", zip_path)
-
-# Replace the download part
-zip_path = RAW / f"statcan_{table_id}_{TODAY}.zip"
-
-if zip_path.exists():
-    print("Already downloaded today:", zip_path)
-else:
-    api_url = f"https://www150.statcan.gc.ca/t1/wds/rest/getFullTableDownloadCSV/{table_id}/en"
-    response = requests.get(api_url, timeout=60)
-    response.raise_for_status()
-
-    zip_url = response.json()["object"]
-    print("Download link:", zip_url)
-
-    data = requests.get(zip_url, timeout=300)
-    data.raise_for_status()
-    zip_path.write_bytes(data.content)
-    print("Saved:", zip_path)
-
-# Open the zip and read data inside it
-
-with zipfile.ZipFile(zip_path, "r") as z:
-    print("Files in the zip :", z.namelist())
-    with z.open(f"{table_id}.csv") as f:
-        prices = pd.read_csv(f, low_memory=False)
-
+prices = load_statcan("18100245")
 print("Rows and columns:", prices.shape)
 print("Column names:", prices.columns.tolist())
 print(prices.head())
-
-# Tell pandas to read the whole file
-#prices = pd.read_csv(f, low_memory=False)
-
 
 
 print("Date range:", prices["REF_DATE"].min(), "to", prices["REF_DATE"].max())
 print("Geographies:", prices["GEO"].unique())
 print("Number of products:", prices["Products"].nunique())
+
+
+# Dataset 2: Consumer Price Index, monthly, not seasonally adjusted (table 18-10-0004-01)
+cpi = load_statcan("18100004")
+print("CPI rows and columns:", cpi.shape)
+print("CPI column names:", cpi.columns.tolist())
+print("CPI date range:", cpi["REF_DATE"].min(), "to", cpi["REF_DATE"].max())
+print("CPI geographies:", cpi["GEO"].unique())
