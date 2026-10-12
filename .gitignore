@@ -220,3 +220,5 @@ __marimo__/
 data/raw/
 # PyCharm settings
 .idea/
+
+data/clean/

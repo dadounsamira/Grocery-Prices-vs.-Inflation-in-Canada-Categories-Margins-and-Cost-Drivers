@@ -45,3 +45,48 @@ food_prices = prices[~prices["Products"].isin(NON_FOOD)]
 
 print("Rows before:", len(prices), "| after removing non-food:", len(food_prices))
 print("Food products:", food_prices["Products"].nunique())
+
+# AUDIT: missing prices and quality flags in the food table
+print("Missing prices:", food_prices["VALUE"].isna().sum())
+print("Quality flags (STATUS):")
+print(food_prices["STATUS"].value_counts(dropna=False))
+
+# AUDIT: where are the missing prices?
+missing = food_prices[food_prices["VALUE"].isna()]
+print(missing.groupby(["Products", "GEO"]).size())
+
+# AUDIT: does every product cover the whole period? (absent rows, not empty cells)
+print("Months in the table:", food_prices["REF_DATE"].nunique())
+canada = food_prices[food_prices["GEO"] == "Canada"]
+months_per_product = canada.groupby("Products")["REF_DATE"].nunique()
+print(months_per_product.sort_values().head(20))
+
+# AUDIT: how many food products does each geography have?
+products_per_geo = food_prices.groupby("GEO")["Products"].nunique()
+print(products_per_geo.sort_values())
+
+# AUDIT: rows missing within existing product series, per geography
+rows_per_geo = food_prices.groupby("GEO").size()
+expected_rows = products_per_geo * 115
+print((expected_rows - rows_per_geo).sort_values())
+
+# AUDIT: what period do the territories actually cover?
+TERRITORIES = ["Whitehorse, Yukon", "Yellowknife, Northwest Territories"]
+territories = food_prices[food_prices["GEO"].isin(TERRITORIES)]
+print(territories.groupby("GEO")["REF_DATE"].agg(["min", "max", "nunique"]))
+
+# CLEAN: keep Canada + 10 provinces (territories only have 11 months, decision #19)
+retail = food_prices[~food_prices["GEO"].isin(TERRITORIES)]
+
+# VERIFY: the cleaned table should be complete
+print("Geographies kept:", retail["GEO"].nunique())
+print("Rows:", len(retail), "| expected:", 106 * 11 * 115 - 115)
+print("Missing prices:", retail["VALUE"].isna().sum())
+
+
+# SAVE: keep only the columns we need and save the clean retail table
+CLEAN = Path("data/clean")
+CLEAN.mkdir(parents=True, exist_ok=True)
+retail_clean = retail[["REF_DATE", "GEO", "Products", "VALUE"]]
+retail_clean.to_csv(CLEAN / "retail_prices_clean.csv", index=False)
+print("Saved:", CLEAN / "retail_prices_clean.csv", retail_clean.shape)
