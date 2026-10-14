@@ -90,3 +90,77 @@ CLEAN.mkdir(parents=True, exist_ok=True)
 retail_clean = retail[["REF_DATE", "GEO", "Products", "VALUE"]]
 retail_clean.to_csv(CLEAN / "retail_prices_clean.csv", index=False)
 print("Saved:", CLEAN / "retail_prices_clean.csv", retail_clean.shape)
+
+# ===== CPI (table 18-10-0004-01) =====
+cpi = read_latest_statcan("18100004")
+# AUDIT: what does the table look like?
+pd.set_option("display.max_columns", None)
+pd.set_option("display.width", 200)
+print(cpi.columns.tolist())
+print(cpi.head())
+print("CPI rows:", len(cpi))
+print("Units (UOM):",cpi["UOM"].unique())
+cpi_groups = sorted(cpi["Products and product groups"].unique())
+print(cpi["UOM"].value_counts())
+print("Number of product groups:", len(cpi_groups))
+food_groups = [g for g in cpi_groups if "food" in g.lower()]
+print("Groups containing 'food':")
+for group in food_groups:
+    print("  ", group)
+
+# AUDIT: do the groups we want exist with these exact names?
+CPI_KEEP = ["All-items",
+            "Food",
+            "Food purchased from stores",
+            "Meat",
+            "Fish, seafood and other marine products",
+            "Dairy products and eggs",
+            "Bakery and cereal products (excluding baby food)",
+            "Fruit, fruit preparations and nuts",
+            "Vegetables and vegetable preparations",
+            "Other food products and non-alcoholic beverages"]
+#for name in CPI_KEEP:
+    #print(name in cpi_groups, "|", name)
+
+# AUDIT: which places are in the CPI table?
+cpi_geos = sorted(cpi["GEO"].unique())
+print("Number of places:", len(cpi_geos))
+for geo in cpi_geos:
+    print("  ", geo)
+
+# CLEAN: keep our 10 groups and Canada + 10 provinces
+CPI_GEOS = ["Canada",
+            "Newfoundland and Labrador", "Prince Edward Island",
+            "Nova Scotia", "New Brunswick", "Quebec", "Ontario",
+            "Manitoba", "Saskatchewan", "Alberta", "British Columbia"]
+keep_group = cpi["Products and product groups"].isin(CPI_KEEP)
+keep_geo = cpi["GEO"].isin(CPI_GEOS)
+cpi_food = cpi[keep_group & keep_geo]
+print("Rows before:", len(cpi), "| after:", len(cpi_food))
+print("Places:", cpi_food["GEO"].nunique(),
+      "| Groups:", cpi_food["Products and product groups"].nunique())
+
+# AUDIT: dates, units and missing values in our selection
+dates_per_group = cpi_food.groupby("Products and product groups")["REF_DATE"].agg(["min", "max", "nunique"])
+print(dates_per_group)
+print("Units:", cpi_food["UOM"].unique())
+print("Missing values:", cpi_food["VALUE"].isna().sum())
+
+# CLEAN: keep January 2017 onwards (same start as retail prices)
+cpi_food = cpi_food[cpi_food["REF_DATE"] >= "2017-01"]
+
+# VERIFY: 11 places x 10 groups x 116 months
+months = cpi_food["REF_DATE"].nunique()
+print("Months:", months, "| from", cpi_food["REF_DATE"].min(), "to", cpi_food["REF_DATE"].max())
+print("Rows:", len(cpi_food), "| expected:", 11 * 10 * months)
+series_lengths = cpi_food.groupby(["GEO", "Products and product groups"]).size()
+print("Shortest series:", series_lengths.min(), "| longest:", series_lengths.max())
+
+# VERIFY: any special flags?
+print(cpi_food["STATUS"].value_counts(dropna=False))
+
+# SAVE: keep the 4 useful columns, shorten the group column name
+cpi_clean = cpi_food[["REF_DATE", "GEO", "Products and product groups", "VALUE"]]
+cpi_clean = cpi_clean.rename(columns={"Products and product groups": "Group"})
+cpi_clean.to_csv(CLEAN / "cpi_clean.csv", index=False)
+print("Saved:", CLEAN / "cpi_clean.csv", cpi_clean.shape)
