@@ -1,7 +1,7 @@
 import zipfile
 from pathlib import Path
-
 import pandas as pd
+import json
 
 #Folder where get_data.py saved the raw downloads
 
@@ -14,6 +14,14 @@ def read_latest_statcan(table_id):
     with zipfile.ZipFile(zip_path) as z:
         with z.open(f"{table_id}.csv") as f:
             return pd.read_csv(f,low_memory=False)
+
+def read_latest_boc(name):
+    """Read the most recent saved Bank of Canada JSON file into a dictionary."""
+    json_path = sorted(RAW.glob(f"boc_{name}_*.json"))[-1]
+    print("Reading:", json_path)
+    with open(json_path, encoding="utf-8") as f:
+        return json.load(f)
+
 
 
 #Retail prices : list every product so we can seperate food from non-food
@@ -164,3 +172,107 @@ cpi_clean = cpi_food[["REF_DATE", "GEO", "Products and product groups", "VALUE"]
 cpi_clean = cpi_clean.rename(columns={"Products and product groups": "Group"})
 cpi_clean.to_csv(CLEAN / "cpi_clean.csv", index=False)
 print("Saved:", CLEAN / "cpi_clean.csv", cpi_clean.shape)
+
+# ===== Bank of Canada (Valet API, JSON files) =====
+# LOOK: which Bank of Canada files do we have?
+for path in sorted(RAW.glob("boc_*.json")):
+    print(path)
+
+# LOOK: what is inside one file? (USD/CAD as the example)
+fx_raw = read_latest_boc("FXUSDCAD")
+print("Top-level keys:", list(fx_raw.keys()))
+print("Number of observations:", len(fx_raw["observations"]))
+print("First 2 observations:", fx_raw["observations"][:2])
+
+# LOOK: the commodity price index group (7 series in one file)
+bcpi_raw = read_latest_boc("BCPI_MONTHLY")
+print("Top-level keys:", list(bcpi_raw.keys()))
+for code, info in bcpi_raw["seriesDetail"].items():
+    print(code, "|", info["label"])
+print("Number of observations:", len(bcpi_raw["observations"]))
+print("First observation:", bcpi_raw["observations"][0])
+print("Last observation:", bcpi_raw["observations"][-1])
+
+# CLEAN: build a table with the month and the 2 series we need
+rows = []
+for obs in bcpi_raw["observations"]:
+    rows.append({"month": obs["d"][:7],
+                 "energy_index": obs["M.ENER"]["v"],
+                 "agri_index": obs["M.AGRI"]["v"]})
+bcpi = pd.DataFrame(rows)
+print(bcpi.head(3))
+print(bcpi.dtypes)
+print("Shape:", bcpi.shape)
+
+# CLEAN: convert the text values to numbers
+bcpi["energy_index"] = pd.to_numeric(bcpi["energy_index"], errors="coerce")
+bcpi["agri_index"] = pd.to_numeric(bcpi["agri_index"], errors="coerce")
+print(bcpi.dtypes)
+print("Missing after conversion:", bcpi[["energy_index", "agri_index"]].isna().sum().sum())
+
+# CLEAN: keep January 2017 onwards (same window as retail and CPI)
+bcpi = bcpi[bcpi["month"] >= "2017-01"]
+
+# VERIFY
+print("Months:", bcpi["month"].nunique(), "| from", bcpi["month"].min(), "to", bcpi["month"].max())
+print(bcpi.describe())
+
+# ----- USD/CAD: daily values -----
+rows = []
+for obs in fx_raw["observations"]:
+    rows.append({"month": obs["d"][:7],
+                 "usdcad": obs["FXUSDCAD"]["v"]})
+fx = pd.DataFrame(rows)
+fx["usdcad"] = pd.to_numeric(fx["usdcad"], errors="coerce")
+print("Days:", len(fx), "| missing:", fx["usdcad"].isna().sum())
+
+# AUDIT: how many business days in each month?
+days_per_month = fx.groupby("month").size()
+print("Months:", days_per_month.index.min(), "to", days_per_month.index.max())
+print("Days per month: min", days_per_month.min(), "| max", days_per_month.max())
+print(days_per_month.sort_values().head(3))
+
+# CLEAN: monthly average of the daily rates, complete months only (2017-01 to 2026-08)
+fx_monthly = fx.groupby("month")["usdcad"].mean().reset_index()
+fx_monthly = fx_monthly[fx_monthly["month"] <= "2026-08"]
+
+# VERIFY
+print("Months:", len(fx_monthly), "| from", fx_monthly["month"].min(), "to", fx_monthly["month"].max())
+print(fx_monthly.head(3))
+print(fx_monthly.describe())
+
+
+# ----- Policy rate (V39079): daily values -----
+rate_raw = read_latest_boc("V39079")
+rows = []
+for obs in rate_raw["observations"]:
+    rows.append({"month": obs["d"][:7],
+                 "policy_rate": obs["V39079"]["v"]})
+rate = pd.DataFrame(rows)
+rate["policy_rate"] = pd.to_numeric(rate["policy_rate"], errors="coerce")
+print("Days:", len(rate), "| missing:", rate["policy_rate"].isna().sum())
+
+# AUDIT: days per month, in our window only
+in_window = (rate["month"] >= "2017-01") & (rate["month"] <= "2026-08")
+days = rate[in_window].groupby("month").size()
+print("Days per month: min", days.min(), "| max", days.max())
+
+# CLEAN: monthly average, 2017-01 to 2026-08
+rate_monthly = rate[in_window].groupby("month")["policy_rate"].mean().reset_index()
+
+# VERIFY
+print("Months:", len(rate_monthly), "| from", rate_monthly["month"].min(), "to", rate_monthly["month"].max())
+print(rate_monthly.describe())
+
+# ----- Combine the 3 drivers into one monthly table -----
+drivers = bcpi.merge(fx_monthly, on="month").merge(rate_monthly, on="month")
+
+# VERIFY
+print("Drivers:", drivers.shape)
+print("Missing:", drivers.isna().sum().sum())
+print(drivers.head(3))
+print(drivers.tail(3))
+
+# SAVE
+drivers.to_csv(CLEAN / "drivers_monthly.csv", index=False)
+print("Saved:", CLEAN / "drivers_monthly.csv", drivers.shape)
