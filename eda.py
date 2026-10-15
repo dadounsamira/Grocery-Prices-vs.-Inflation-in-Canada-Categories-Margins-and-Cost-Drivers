@@ -80,3 +80,62 @@ plt.show()
 
 # Save the numbers too (for the report and Power BI)
 prov.round(1).to_csv(EDA / "03_gap_by_province.csv")
+
+# ===== Part 4 (RQ3): the 4 drivers over time, with 2 dated events =====
+EVENTS = ["2020-03", "2022-02"]   # COVID-19 lockdowns, Russia invades Ukraine
+
+fig, axes = plt.subplots(2, 2, figsize=(12, 7))
+panels = [(axes[0, 0], "energy_index", "Energy commodity index (1972 = 100)"),
+          (axes[0, 1], "agri_index", "Agriculture commodity index (1972 = 100)"),
+          (axes[1, 0], "usdcad", "USD/CAD (Canadian dollars per 1 US dollar)"),
+          (axes[1, 1], "policy_rate", "Bank of Canada policy rate (%)")]
+
+for ax, column, title in panels:
+    ax.plot(drivers["month"], drivers[column])
+    for month in EVENTS:
+        ax.axvline(month, color="red", linestyle=":", linewidth=1)
+    ax.set_title(title, fontsize=10)
+    ax.set_xticks(drivers["month"][::24])
+
+fig.suptitle("Possible drivers of food prices, 2017-2026 (red dotted lines: COVID-19, Ukraine war)")
+fig.tight_layout()
+fig.savefig(EDA / "04_drivers_over_time.png", dpi=150)
+plt.show()
+
+# ===== Part 5 (RQ3): relationships between food prices and the drivers =====
+food = cpi[(cpi["GEO"] == "Canada") & (cpi["Group"] == "Food purchased from stores")]
+food = food[["REF_DATE", "VALUE"]].rename(columns={"REF_DATE": "month", "VALUE": "food_cpi"})
+both = food.merge(drivers, on="month").set_index("month")
+print("Joined:", both.shape)
+
+changes = both[["food_cpi", "energy_index", "agri_index", "usdcad"]].pct_change(12) * 100
+changes["policy_rate"] = both["policy_rate"]
+changes = changes.dropna()
+print(changes.round(1).head(3))
+print("Months with a year-over-year change:", len(changes))
+
+# Correlation between food inflation and each driver, with the driver shifted back 0-12 months
+LAGS = [0, 3, 6, 9, 12, 15, 18, 24]
+DRIVERS = ["energy_index", "agri_index", "usdcad", "policy_rate"]
+
+lag_table = pd.DataFrame(index=LAGS, columns=DRIVERS, dtype=float)
+for driver in DRIVERS:
+    for lag in LAGS:
+        lag_table.loc[lag, driver] = changes["food_cpi"].corr(changes[driver].shift(lag))
+
+lag_table.index.name = "lag (months)"
+print(lag_table.round(2))
+lag_table.round(2).to_csv(EDA / "05_lag_correlations.csv")
+
+# Chart: correlation with food inflation, by lag
+fig, ax = plt.subplots(figsize=(10, 5))
+for driver in DRIVERS:
+    ax.plot(lag_table.index, lag_table[driver], marker="o", label=driver)
+ax.axhline(0, color="grey", linewidth=0.8)
+ax.set_title("Correlation between food inflation and each driver, by lag (Canada, 2018-2026)")
+ax.set_xlabel("Lag (months the driver is shifted back)")
+ax.set_ylabel("Correlation (r)")
+ax.legend()
+fig.tight_layout()
+fig.savefig(EDA / "05_lag_correlations.png", dpi=150)
+plt.show()
