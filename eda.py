@@ -139,3 +139,20 @@ ax.legend()
 fig.tight_layout()
 fig.savefig(EDA / "05_lag_correlations.png", dpi=150)
 plt.show()
+
+# ===== Part 6: seasonality of grocery prices (Canada, 2017-2026) =====
+food_canada = both["food_cpi"]
+monthly_change = food_canada.pct_change() * 100
+by_month = monthly_change.groupby(monthly_change.index.str[5:7]).mean()
+print(by_month.round(2))
+
+fig, ax = plt.subplots(figsize=(10, 4))
+ax.bar(by_month.index, by_month.values)
+ax.axhline(monthly_change.mean(), color="grey", linestyle="--", label="Average of all months")
+ax.set_title("Average month-to-month change in grocery prices, by calendar month (Canada, 2017-2026)")
+ax.set_xlabel("Calendar month (01 = January)")
+ax.set_ylabel("Average % change from previous month")
+ax.legend()
+fig.tight_layout()
+fig.savefig(EDA / "06_seasonality_food.png", dpi=150)
+plt.show()
