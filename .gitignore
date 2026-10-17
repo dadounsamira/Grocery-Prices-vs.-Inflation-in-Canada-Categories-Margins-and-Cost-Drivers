@@ -223,3 +223,6 @@ data/raw/
 
 data/clean/
 data/*.db
+
+# Downloaded annual report PDFs (public, re-downloadable; not stored in the repo)
+data/manual/reports/
