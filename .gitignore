@@ -222,3 +222,4 @@ data/raw/
 .idea/
 
 data/clean/
+data/*.db
