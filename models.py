@@ -52,3 +52,38 @@ mae = mean_absolute_error(test["y"], linear_pred)
 rmse = mean_squared_error(test["y"], linear_pred) ** 0.5
 results.append({"model": "Linear regression", "MAE": round(mae, 3), "RMSE": round(rmse, 3)})
 print(pd.DataFrame(results))
+
+# ===== Block 3: check the regression assumptions =====
+import matplotlib.pyplot as plt
+from scipy import stats
+from statsmodels.graphics.tsaplots import plot_acf
+from statsmodels.stats.stattools import durbin_watson
+from statsmodels.stats.diagnostic import het_breuschpagan
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+
+residuals = linear.resid
+fitted = linear.fittedvalues
+
+fig, axes = plt.subplots(1, 3, figsize=(14, 4))
+axes[0].scatter(fitted, residuals)
+axes[0].axhline(0, color="grey", linestyle="--")
+axes[0].set_title("Residuals vs fitted (linearity, constant variance)")
+axes[0].set_xlabel("Fitted value")
+axes[0].set_ylabel("Residual")
+plot_acf(residuals, lags=12, ax=axes[1])
+axes[1].set_title("Autocorrelation of residuals (independence)")
+sm.qqplot(residuals, line="s", ax=axes[2])
+axes[2].set_title("Q-Q plot (normality)")
+fig.tight_layout()
+fig.savefig(OUT / "linear_assumption_checks.png", dpi=150)
+plt.show()
+
+print("Durbin-Watson (about 2 = no autocorrelation):", round(durbin_watson(residuals), 2))
+print("Breusch-Pagan p-value (above 0.05 = constant variance OK):", round(het_breuschpagan(residuals, X_train)[1], 3))
+print("Shapiro-Wilk p-value (above 0.05 = normal residuals OK):", round(stats.shapiro(residuals).pvalue, 3))
+
+X_drivers = sm.add_constant(train[chosen])
+for i, name in enumerate(X_drivers.columns):
+    if name != "const":
+        print("VIF", name, round(variance_inflation_factor(X_drivers.values, i), 2))
+print(train[chosen].corr().round(2))
