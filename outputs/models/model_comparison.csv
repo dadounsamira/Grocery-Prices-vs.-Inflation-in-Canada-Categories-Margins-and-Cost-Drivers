@@ -1,0 +1,5 @@
+model,MAE,RMSE,better_than_baseline_%
+Seasonal naive,0.518,0.581,0.0
+Linear regression,0.488,0.55,5.8
+Regression tree,0.472,0.63,8.9
+Random forest,0.505,0.649,2.5

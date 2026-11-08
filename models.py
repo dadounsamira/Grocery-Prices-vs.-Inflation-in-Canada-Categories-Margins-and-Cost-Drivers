@@ -86,4 +86,78 @@ X_drivers = sm.add_constant(train[chosen])
 for i, name in enumerate(X_drivers.columns):
     if name != "const":
         print("VIF", name, round(variance_inflation_factor(X_drivers.values, i), 2))
-print(train[chosen].corr().round(2))
+
+# ===== Block 4: regression tree and random forest =====
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import TimeSeriesSplit, GridSearchCV
+
+cv = TimeSeriesSplit(n_splits=5)
+
+tree_search = GridSearchCV(DecisionTreeRegressor(random_state=42),
+                           {"max_depth": [2, 3, 4], "min_samples_leaf": [3, 5, 8]},
+                           cv=cv, scoring="neg_mean_absolute_error")
+tree_search.fit(train[FEATURES], train["y"])
+tree = tree_search.best_estimator_
+print("Tree settings:", tree_search.best_params_)
+
+tree_pred = tree.predict(test[FEATURES])
+mae = mean_absolute_error(test["y"], tree_pred)
+rmse = mean_squared_error(test["y"], tree_pred) ** 0.5
+results.append({"model": "Regression tree", "MAE": round(mae, 3), "RMSE": round(rmse, 3)})
+
+forest_search = GridSearchCV(RandomForestRegressor(n_estimators=300, random_state=42),
+                             {"max_depth": [3, 5, None], "min_samples_leaf": [2, 5]},
+                             cv=cv, scoring="neg_mean_absolute_error")
+forest_search.fit(train[FEATURES], train["y"])
+forest = forest_search.best_estimator_
+print("Forest settings:", forest_search.best_params_)
+
+forest_pred = forest.predict(test[FEATURES])
+mae = mean_absolute_error(test["y"], forest_pred)
+rmse = mean_squared_error(test["y"], forest_pred) ** 0.5
+results.append({"model": "Random forest", "MAE": round(mae, 3), "RMSE": round(rmse, 3)})
+
+comparison = pd.DataFrame(results)
+comparison["better_than_baseline_%"] = ((1 - comparison["MAE"] / comparison["MAE"][0]) * 100).round(1)
+print(comparison)
+
+# ===== Block 5: save results and charts =====
+from sklearn.tree import plot_tree
+
+comparison.to_csv(OUT / "model_comparison.csv", index=False)
+forecasts = pd.DataFrame({"actual": test["y"], "seasonal_naive": naive_pred,
+                          "linear": linear_pred, "tree": tree_pred, "forest": forest_pred})
+forecasts.round(3).to_csv(OUT / "test_forecasts.csv")
+print(forecasts.round(2))
+
+# Chart 1: actual vs the 4 forecasts
+fig, ax = plt.subplots(figsize=(11, 5))
+ax.plot(forecasts.index, forecasts["actual"], color="black", linewidth=2.5, marker="o", label="Actual")
+for column in ["seasonal_naive", "linear", "tree", "forest"]:
+    ax.plot(forecasts.index, forecasts[column], marker=".", linestyle="--", label=column)
+ax.axhline(0, color="grey", linewidth=0.8)
+ax.set_title("Monthly change in store-food prices: actual vs forecasts (test months)")
+ax.set_ylabel("Monthly % change")
+ax.legend()
+fig.tight_layout()
+fig.savefig(OUT / "forecasts_vs_actual.png", dpi=150)
+plt.show()
+
+# Chart 2: which features the forest relied on
+importance = pd.Series(forest.feature_importances_, index=FEATURES).sort_values().tail(8)
+fig, ax = plt.subplots(figsize=(9, 5))
+ax.barh(importance.index, importance.values)
+ax.set_title("Random forest: feature importance (top 8)")
+ax.set_xlabel("Importance (share of the forest's improvement)")
+fig.tight_layout()
+fig.savefig(OUT / "forest_feature_importance.png", dpi=150)
+plt.show()
+
+# Chart 3: the regression tree drawn as a diagram
+fig, ax = plt.subplots(figsize=(14, 6))
+plot_tree(tree, feature_names=FEATURES, filled=True, rounded=True, precision=2, ax=ax)
+ax.set_title("Regression tree (depth 2)")
+fig.tight_layout()
+fig.savefig(OUT / "regression_tree.png", dpi=150)
+plt.show()
