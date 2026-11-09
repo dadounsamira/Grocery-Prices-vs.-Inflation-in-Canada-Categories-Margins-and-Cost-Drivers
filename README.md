@@ -22,7 +22,8 @@ Food prices in Canada rose sharply after 2021. This project uses public data to 
 | Annual retail trade survey, supermarket gross margin (20-10-0066-01 for 2012-2021; 20-10-0083-01 for 2022 onward) | Statistics Canada | Web Data Service API (planned for `get_data.py` in Milestone 4; not used in the M3 results) | Statistics Canada Open Licence |
 
 ## Data access notes
-- Raw data, clean data and the database are **not stored in this repository**. They are rebuilt by the scripts below.
+- **Working dataset:** the clean files used for modeling are committed in `data/clean/` (`cpi_clean.csv`, `drivers_monthly.csv`, `retail_prices_clean.csv`, `model_table.csv`), so the notebook runs without downloading anything.
+- Raw downloads and the SQLite database are **not stored in this repository** (size). They are rebuilt by `get_data.py`, `clean_data.py` and `build_db.py`.
 - All Milestone 2 and 3 results use one **frozen snapshot downloaded on 2026-09-28** (the date is in every raw file name). Re-downloading later can change the data.
 - The grocer annual report PDFs are kept locally in `data/manual/reports/` (not committed). Each value in `grocer_margins.csv` lists the report and page it comes from.
 
@@ -39,12 +40,20 @@ python results_rq1_rq2.py  # 5c. RQ1 heatmap and RQ2 margins chart -> outputs/re
 ```
 Chart windows pause the scripts: close each window to continue.
 
+**Milestone 3 notebook:** `M3_initial_results.ipynb` runs steps 5a-5c in order with explanations and descriptive statistics. A compiled copy, **`M3_initial_results.html`**, can be read in any browser without running the code. To re-run it:
+```bash
+jupyter nbconvert --to html --execute M3_initial_results.ipynb
+```
+
 ## Repository structure
 ```
 ├── README.md              Project overview (this file)
 ├── DECISION_LOG.md        Every major choice, the alternatives and why
 ├── LITERATURE_NOTES.md    Sources used to justify the method
 ├── requirements.txt       Python libraries needed
+├── CODING_ASSISTANCE.md   Coding assistance declaration (AI use for code, and how it was verified)
+├── M3_initial_results.ipynb  Milestone 3 notebook: steps 5a-5c with explanations and outputs
+├── M3_initial_results.html   Compiled notebook (read without running the code)
 ├── get_data.py            1. Downloads all public data and checks coverage
 ├── clean_data.py          2. Audits and cleans each source (look, audit, clean, verify, save)
 ├── build_db.py            3. Builds the SQLite database and joins CPI with the drivers
@@ -54,10 +63,11 @@ Chart windows pause the scripts: close each window to continue.
 ├── results_rq1_rq2.py     5c. First RQ1 and RQ2 results
 ├── data/
 │   ├── manual/grocer_margins.csv   Grocer sales and gross profit (committed)
-│   ├── raw/  clean/  grocery.db    Created by the scripts (not committed)
+│   ├── clean/                      Clean working dataset (committed)
+│   ├── raw/  grocery.db            Created by the scripts (not committed)
 └── outputs/
     ├── pipeline_diagram.png        Pipeline overview
-    ├── eda/                        6 charts and 2 tables from eda.py
+    ├── eda/                        Charts and tables from eda.py, plus the target distribution (notebook)
     ├── models/                     RQ3: model_comparison.csv, test_forecasts.csv, 4 charts
     └── results/                    RQ1 heatmap, RQ2 chart and their tables
 ```

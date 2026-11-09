@@ -221,7 +221,7 @@ data/raw/
 # PyCharm settings
 .idea/
 
-data/clean/
+# data/clean/ is committed (working dataset for the M3 notebook)
 data/*.db
 
 # Downloaded annual report PDFs (public, re-downloadable; not stored in the repo)
