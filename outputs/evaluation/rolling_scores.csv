@@ -1,0 +1,17 @@
+window,model,MAE,RMSE,seconds
+1,Seasonal naive,0.5103,0.6222,0.0006
+1,Linear regression,0.4186,0.5254,0.0085
+1,Regression tree,0.5381,0.7174,0.2424
+1,Random forest,0.5572,0.6876,9.8562
+2,Seasonal naive,0.5335,0.6606,0.0006
+2,Linear regression,0.7002,0.8199,0.0076
+2,Regression tree,0.4122,0.5182,0.2066
+2,Random forest,0.3918,0.462,9.5492
+3,Seasonal naive,0.3917,0.4771,0.0003
+3,Linear regression,0.3522,0.3878,0.0081
+3,Regression tree,0.3567,0.4592,0.2312
+3,Random forest,0.3558,0.4325,10.6638
+4,Seasonal naive,0.5177,0.5805,0.0003
+4,Linear regression,0.4875,0.5496,0.0066
+4,Regression tree,0.472,0.6301,0.2855
+4,Random forest,0.5047,0.6487,9.7003

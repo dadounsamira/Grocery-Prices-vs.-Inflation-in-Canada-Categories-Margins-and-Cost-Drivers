@@ -1,0 +1,5 @@
+model,MAE_mean,MAE_std,RMSE_mean,seconds_mean,windows_beating_baseline,better_than_baseline_%
+Linear regression,0.4896,0.1509,0.5706,0.0077,3,-0.2699
+Random forest,0.4524,0.0944,0.5577,9.9424,3,7.3534
+Regression tree,0.4447,0.0781,0.5812,0.2414,3,8.9192
+Seasonal naive,0.4883,0.0651,0.5851,0.0005,0,0.0

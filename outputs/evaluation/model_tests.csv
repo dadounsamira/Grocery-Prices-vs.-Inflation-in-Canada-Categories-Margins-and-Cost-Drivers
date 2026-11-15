@@ -1,0 +1,4 @@
+model,mean_error_reduction,t,p_value,months
+Linear regression,-0.0013,-0.0195,0.9845,48
+Regression tree,0.0436,0.6289,0.5325,48
+Random forest,0.0359,0.5782,0.5659,48
